@@ -65,7 +65,15 @@ class WindowsAPI:
             ("hStdOutput", HANDLE),
             ("hStdError", HANDLE) 
         ]
-    
+    #Structure for DNS Cache Entry
+    class DNS_CACHE_ENTRY(ctypes.Structure):
+        _fields_    =   [
+            ("pNext",HANDLE),
+            ("recName",LPWSTR),
+            ("wType",DWORD),
+            ("wDataLength",DWORD),
+            ("dwFlags",DWORD)
+        ]
 
     #Block of class
     def __init__(self):
@@ -74,11 +82,14 @@ class WindowsAPI:
         #names of dll files
         USER32_DLL = "User32.dll"
         KERNERL_DLL = "Kernel32.dll"
+        DNSAPI_DLL  = "DNSAPI.DLL"
 
         # Grab a handle to kernel32.dll & USer32.dll
         self.__kernel_handler = ctypes.WinDLL(KERNERL_DLL)
         self.__user_handler = ctypes.WinDLL(USER32_DLL)
+        self.__dns_handler = ctypes.WinDLL(DNSAPI_DLL)
 
+    #Check Last Error
     def assert_last_error(self):
         '''
             Function check last error, if occur error the program will exit with error 1
@@ -178,7 +189,7 @@ class WindowsAPI:
             PrintScreen.log("terminate_process: Killed...")
 
         return response
-    
+    #Kill Proc By Name
     def kill_process(self, processName, exitCode=0x1):
         handleWindows   = self.find_window_a(processName)
         processID       = self.get_windows_thread_process_id(handleWindows)
@@ -208,7 +219,27 @@ class WindowsAPI:
             PrintScreen.log("Process Is Running...")
 
         return response
+    #Undocumented
+    def dns_get_cache_data_table(self, DNS_Entry):
 
+        # Calling the Windows API Call
+        response = self.__dns_handler.DnsGetCacheDataTable(ctypes.byref(DNS_Entry))
+
+        if response <= 0 or response is None:
+            PrintScreen.err("dns_get_cache_data_table: Could Not Get DNS Cache")
+            self.assert_last_error()
+        else:
+            PrintScreen.log("Got DNS Cache...")
+
+        return response
+
+def walk_dns_entry(DNS_Entry):
+    while True:
+        try: #wallking for each entry and prints
+            DNS_Entry = ctypes.cast(DNS_Entry.pNext, ctypes.POINTER(WindowsAPI.DNS_CACHE_ENTRY))
+            PrintScreen.log("DNS Entry {0} - Type {1}".format(DNS_Entry.contents.recName, DNS_Entry.contents.wType))
+        except:
+            break
 
 # Create WinApi Obj
 api = WindowsAPI()
@@ -230,4 +261,12 @@ api = WindowsAPI()
 #lpStartupInfo.dwFlags       = WindowsAPI.ProcessAccess.STARTF_USERSHOWWINDOW
 #api.create_process(lpApplicationName, dwCreationFlags, lpProcessInformation, lpStartupInfo)
 
+
+# Example get Dns Doc
+DNS_Entry   = WindowsAPI.DNS_CACHE_ENTRY()
+DNS_Entry.wDataLength   = 1024
+
+print(api.dns_get_cache_data_table(DNS_Entry))
+walk_dns_entry(DNS_Entry)
+pass
 
