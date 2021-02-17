@@ -211,12 +211,12 @@ class WindowsAPI:
         process_handler = self.__kernel_handler.OpenProcess(dwDesiredAccess, bInheritHandle, dwProcessID)
         # Check to see if we have a valid Handle to the process
         if process_handler <= 0 or process_handler is None:
-            PrintScreen.err("open_process: Could Not Grab Handle Priv Handle")
+            PrintScreen.err("open_process: Could Not Grab Privilage Handle")
             #Check Errors
             self.assert_last_error()
             exit(1)
         else:
-            PrintScreen.log("open_process: Got Process Handle....")
+            PrintScreen.log("open_process: Privileged Handle Opened....")
         
         return process_handler
 
@@ -287,7 +287,7 @@ class WindowsAPI:
             PrintScreen.err("open_process_token: Could Not Grab Privilege Handle to Token")
             self.assert_last_error()
         else:
-            PrintScreen.log("Privilege Handle Opened [{0}]".format(tokenHandle))
+            PrintScreen.log("Handle to Process Token Created Opened [{0}]".format(tokenHandle))
 
         return response
 
@@ -297,10 +297,10 @@ class WindowsAPI:
         response = self.__advapi_handler.LookupPrivilegeValueA(lpSystemName, LPCSTR(lpName.encode("utf-8")), ctypes.byref(luidPrivilege))
 
         if response <= 0 or response is None:
-            PrintScreen.err("lookup_privilege_value: Could Not Get LUID Value")
+            PrintScreen.err("lookup_privilege_value: Lookup For {0} Failed".format(lpName))
             self.assert_last_error()
         else:
-            PrintScreen.log("We Found The LUID...")
+            PrintScreen.log("Lookup For {0} worked".format(lpName))
 
         return response
 
@@ -328,6 +328,11 @@ class WindowsAPI:
             self.assert_last_error()
         else:
             PrintScreen.log("AdjustTokenPrivileges Flipped Privilege...")
+
+        if pfResult:
+            PrintScreen.log("Privilege {0} is Enabled {0}".format(lpName))
+        else:
+            PrintScreen.log("Privilege {0} is Disable {0}".format(lpName))
 
         return response
 
@@ -368,7 +373,7 @@ api = WindowsAPI()
 #-----------------------------------------------------------------------------------------------------
 # Example Get Token Privilege
 processName =   "Task Manager"
-processName =   "new 1 - Notepad++"
+#processName =   "new 1 - Notepad++"
 handleWindows   = api.find_window_a(processName)
 processID       = api.get_windows_thread_process_id(handleWindows)
 processHandle   = api.open_process(processID)   
@@ -377,9 +382,9 @@ tokenHandle     =   HANDLE()
 api.open_process_token(processHandle, desiredAccess, tokenHandle)
 #-----------------------------------------------------------------------------------------------------
 # Example Lookup Privilege Value
-lpSystemName    =   LPCSTR() #LPCSTR
+lpSystemName    =   None #LPCSTR
 luidPrivilege   =   LUID()
-lpName          =   PrivilegeContent.SE_CHANGE_NOTIFY_NAME
+lpName          =   PrivilegeContent.SE_DEBUG
 response = api.lookup_privilege_value(lpSystemName, lpName, luidPrivilege)
 #-----------------------------------------------------------------------------------------------------
 # Example Check Privilege
@@ -388,14 +393,14 @@ requiredPrivileges.PrivilegeCount = 1
 
 requiredPrivileges.Privileges = LUID_AND_ATTRIBUTES()
 requiredPrivileges.Privileges.Luid = luidPrivilege  
-requiredPrivileges.Privileges.Attributes = PrivilegeContent.SE_PRIVILEGE_ENABLED
+
 
 pfResult = ctypes.c_long()
 api.privilege_check(tokenHandle, requiredPrivileges, pfResult)
 if pfResult:
-    print("Priv Enabled {0}".format(lpName))
+    requiredPrivileges.Privileges.Attributes = PrivilegeContent.SE_PRIVILEGE_DISABLED
 else:
-    print("Priv Not Enabled {0}".format(lpName))
+    requiredPrivileges.Privileges.Attributes = PrivilegeContent.SE_PRIVILEGE_ENABLED
 pass
 #-----------------------------------------------------------------------------------------------------
 # Example Adjust Token Privileges
@@ -408,7 +413,6 @@ newState.Privileges = requiredPrivileges.Privileges
 bufferLength = ctypes.sizeof(newState)
 previousState = ctypes.c_void_p()
 returnLength = ctypes.c_void_p()
-
-
+ 
 api.adjust_token_privileges(tokenHandle, disableAllPrivileges, newState, bufferLength, previousState, returnLength)
 pass
